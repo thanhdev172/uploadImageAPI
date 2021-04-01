@@ -1,25 +1,118 @@
-service: myserverlessproject
+service: myserverlessproject3
 
 provider:
   name: aws
-  runtime: nodejs10.x
-  profile: serverlessUser
+  runtime: nodejs12.x
+  profile: thanhdev172
+  region: ap-southeast-1
+  stage: dev
+  environment:
+    tableName: ${self:custom.tableName}
+    bucketName: ${self:custom.bucketName}
+    imageUploadBucket: ${self:custom.imageUploadBucket}
+    region: ${self:provider.region}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:*
+        - s3:*
+        - ses:*
+      Resource: "*"
 
 plugins:
-  - serverless-s3-sync
+  - serverless-webpack
+
+package:
+  individually: true
 
 custom:
-  s3Sync:
-    - bucketName: myserverlessprojectuploadbucket-123123
-      localDir: UploadData
+  tableName: player-points-table
+  bucketName: myserverlessprojectuploadbucket-172
+  imageUploadBucket: my-image-upload-bucket-demo-sws-172
 
 functions:
-  hello:
-    handler: handler.hello
+  getPlayerScore:
+    handler: lambdas/endpoints/getPlayerScore.handler
+    events:
+      - http:
+          path: get-player-score/{ID}
+          method: GET
+          cors: true
+  createPlayerScore:
+    handler: lambdas/endpoints/createPlayerScore.handler
+    events:
+      - http:
+          path: create-player-score/{ID}
+          method: POST
+          cors: true
+  updatePlayerScore:
+    handler: lambdas/endpoints/updatePlayerScore.handler
+    events:
+      - http:
+          path: update-player-score/{ID}
+          method: PUT
+          cors: true
+  getGameScores:
+    handler: lambdas/endpoints/getGameScores.handler
+    events:
+      - http:
+          path: get-game-scores/{game}
+          method: GET
+          cors: true
+
+  getGamesForPlayer:
+    handler: lambdas/endpoints/getGamesForPlayer.handler
+    events:
+      - http:
+          path: get-games-for-player/{playerID}
+          method: GET
+          cors: true
+
+  sendEmail:
+    handler: lambdas/endpoints/sendEmail.handler
+    events:
+      - http:
+          path: send-email
+          method: POST
+          cors: true
+
+  imageUpload:
+    handler: lambdas/endpoints/imageUpload.handler
+    events:
+      - http:
+          path: image-upload
+          method: POST
+          cors: true
 
 resources:
   Resources:
     DemoBucketUpload:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: myserverlessprojectuploadbucket-123123
+        BucketName: ${self:custom.bucketName}
+    ImageUploadBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.imageUploadBucket}
+        AccessControl: PublicRead
+    MyDynamoDbTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tableName}
+        AttributeDefinitions:
+          - AttributeName: ID
+            AttributeType: S
+          - AttributeName: game
+            AttributeType: S
+        KeySchema:
+          - AttributeName: ID
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+        GlobalSecondaryIndexes:
+          - IndexName: game-index
+            KeySchema:
+              - AttributeName: game
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
